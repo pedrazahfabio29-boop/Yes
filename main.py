@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import uuid
+import os
 from xml.sax.saxutils import escape as xml_escape
 
 app = Flask(__name__)
@@ -48,8 +49,7 @@ def token_material(v):
     if "ice" in s:
         return "1536"
 
-    return "256"
-
+    return "256"  # fallback
 
 def token_surface(v):
     s = str(v).lower()
@@ -102,7 +102,7 @@ def build_instance(data, parent):
       <R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>
     </CoordinateFrame>
 
-    <!-- ✅ THIS IS THE IMPORTANT ONE -->
+    <!-- ✅ REAL COLOR (DO NOT CHANGE THIS) -->
     <Color name="Color">
       <R>{color[0]/255}</R>
       <G>{color[1]/255}</G>
@@ -115,7 +115,7 @@ def build_instance(data, parent):
     <float name="Transparency">{data.get("Transparency", 0)}</float>
     <bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>
 
-    <!-- ✅ REAL ENUM TOKENS -->
+    <!-- ✅ MATERIAL + SURFACES -->
     <token name="Material">{token_material(data.get("Material"))}</token>
     <token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>
     <token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>
@@ -1927,7 +1927,10 @@ def build_rbxlx(instances):
 @app.route("/publish", methods=["POST"])
 def publish():
     try:
-        data = request.json
+        data = request.get_json(silent=True)
+
+        if not data:
+            return jsonify({"error": "Invalid JSON"}), 400
 
         api_key = data.get("apiKey")
         universe_id = data.get("universeId")
@@ -1962,7 +1965,8 @@ def publish():
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# RUN
+# RUN (FIXED FOR DEPLOY)
 # =========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+    port = int(os.environ.get("PORT", 3000))
+    app.run(host="0.0.0.0", port=port)
