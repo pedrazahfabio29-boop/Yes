@@ -2,12 +2,13 @@ from flask import Flask, request, jsonify
 import requests
 import uuid
 import os
-import re
 from xml.sax.saxutils import escape as xml_escape
 
 app = Flask(__name__)
 
-# Paste your REAL rbxlx template here
+# =========================
+# 🔥 HARDCODED TEMPLATE
+# =========================
 TEMPLATE = """<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<External>null</External>
 	<External>nil</External>
@@ -1604,6 +1605,9 @@ return {
 	</SharedStrings>
 </roblox>"""
 
+# =========================
+# HELPERS
+# =========================
 def esc(v):
     return xml_escape(str(v))
 
@@ -1615,158 +1619,114 @@ def num_list(v, n, default):
         return default
     return [(v[i] if i < len(v) else default[i]) for i in range(n)]
 
+# =========================
+# ENUM TOKENS
+# =========================
 def token_material(v):
     s = str(v).lower()
-    if "neon" in s:
-        return "288"
-    if "plastic" in s:
-        return "256"
-    if "smoothplastic" in s:
-        return "256"
-    if "wood" in s:
-        return "512"
-    if "slate" in s:
-        return "800"
-    if "concrete" in s:
-        return "816"
-    if "corrodedmetal" in s:
-        return "1040"
-    if "diamondplate" in s:
-        return "1056"
-    if "foil" in s:
-        return "1072"
-    if "grass" in s:
-        return "1280"
-    if "ice" in s:
-        return "1536"
+
+    if "plastic" in s: return "256"
+    if "smoothplastic" in s: return "256"
+    if "neon" in s: return "288"
+    if "wood" in s: return "512"
+    if "slate" in s: return "800"
+    if "concrete" in s: return "816"
+    if "corrodedmetal" in s: return "1040"
+    if "diamondplate" in s: return "1056"
+    if "foil" in s: return "1072"
+    if "grass" in s: return "1280"
+    if "ice" in s: return "1536"
+    if "crackedlava" in s: return "1792"
+
     return "256"
 
 def token_surface(v):
     s = str(v).lower()
-    if "smooth" in s:
-        return "0"
-    if "studs" in s:
-        return "1"
-    if "inlet" in s:
-        return "2"
-    if "universal" in s:
-        return "3"
-    if "glue" in s:
-        return "4"
-    if "weld" in s:
-        return "5"
+
+    if "smooth" in s: return "0"
+    if "studs" in s: return "1"
+    if "inlet" in s: return "2"
+    if "universal" in s: return "3"
+    if "glue" in s: return "4"
+    if "weld" in s: return "5"
+
     return "0"
 
-def get_workspace_referent(template_text):
-    m = re.search(r'<Item class="Workspace" referent="([^"]+)">', template_text)
-    if not m:
-        raise ValueError("Workspace referent not found in template")
-    return m.group(1)
-
-def find_matching_item_close(template_text, open_item_index):
-    depth = 0
-    i = open_item_index
-    while i < len(template_text):
-        next_open = template_text.find("<Item ", i)
-        next_close = template_text.find("</Item>", i)
-
-        if next_close == -1:
-            return -1
-
-        if next_open != -1 and next_open < next_close:
-            depth += 1
-            i = next_open + 5
-        else:
-            depth -= 1
-            i = next_close + len("</Item>")
-            if depth == 0:
-                return next_close
-    return -1
-
-def build_instance(data, parent_ref):
+# =========================
+# BUILD INSTANCE
+# =========================
+def build_instance(data, parent):
     ref = new_ref()
 
-    size = num_list(data.get("Size", [4, 4, 4]), 3, [4, 4, 4])
-    color = num_list(data.get("Color", [163, 162, 165]), 3, [163, 162, 165])
+    size = num_list(data.get("Size", [4,4,4]), 3, [4,4,4])
+    color = num_list(data.get("Color", [163,162,165]), 3, [163,162,165])
     cf = num_list(
-        data.get("CFrame", [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]),
+        data.get("CFrame", [0,0,0,1,0,0,0,1,0,0,0,1]),
         12,
-        [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]
+        [0,0,0,1,0,0,0,1,0,0,0,1]
     )
 
-    cls = data.get("ClassName", "Part")
-    name = data.get("Name", "Part")
+    return f"""
+<Item class="{data.get('ClassName','Part')}" referent="{ref}">
+  <Properties>
 
-    xml = []
-    xml.append(f'<Item class="{cls}" referent="{ref}">')
-    xml.append('<Properties>')
-    xml.append(f'<string name="Name">{esc(name)}</string>')
+    <string name="Name">{esc(data.get('Name','Part'))}</string>
 
-    xml.append(f'<Vector3 name="Size"><X>{size[0]}</X><Y>{size[1]}</Y><Z>{size[2]}</Z></Vector3>')
-    xml.append('<CoordinateFrame name="CFrame">')
-    xml.append(f'<X>{cf[0]}</X><Y>{cf[1]}</Y><Z>{cf[2]}</Z>')
-    xml.append(f'<R00>{cf[3]}</R00><R01>{cf[4]}</R01><R02>{cf[5]}</R02>')
-    xml.append(f'<R10>{cf[6]}</R10><R11>{cf[7]}</R11><R12>{cf[8]}</R12>')
-    xml.append(f'<R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>')
-    xml.append('</CoordinateFrame>')
+    <Vector3 name="Size">
+      <X>{size[0]}</X>
+      <Y>{size[1]}</Y>
+      <Z>{size[2]}</Z>
+    </Vector3>
 
-    # Match the real template structure
-    xml.append(f'<Color3 name="Color3"><R>{color[0]/255}</R><G>{color[1]/255}</G><B>{color[2]/255}</B></Color3>')
-    xml.append('<int name="BrickColor">194</int>')
+    <CoordinateFrame name="CFrame">
+      <X>{cf[0]}</X><Y>{cf[1]}</Y><Z>{cf[2]}</Z>
+      <R00>{cf[3]}</R00><R01>{cf[4]}</R01><R02>{cf[5]}</R02>
+      <R10>{cf[6]}</R10><R11>{cf[7]}</R11><R12>{cf[8]}</R12>
+      <R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>
+    </CoordinateFrame>
 
-    xml.append(f'<bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>')
-    xml.append(f'<bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>')
-    xml.append(f'<bool name="CanTouch">{"true" if data.get("CanTouch", True) else "false"}</bool>')
-    xml.append(f'<bool name="CanQuery">{"true" if data.get("CanQuery", True) else "false"}</bool>')
-    xml.append(f'<float name="Transparency">{data.get("Transparency", 0)}</float>')
-    xml.append(f'<float name="Reflectance">{data.get("Reflectance", 0)}</float>')
-    xml.append(f'<bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>')
-    xml.append(f'<bool name="Locked">{"true" if data.get("Locked", False) else "false"}</bool>')
+    <!-- ✅ FINAL COLOR FIX -->
+    <Color3 name="Color">
+      <R>{color[0]/255}</R>
+      <G>{color[1]/255}</G>
+      <B>{color[2]/255}</B>
+    </Color3>
 
-    xml.append(f'<token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>')
-    xml.append(f'<token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>')
-    xml.append('<token name="FrontSurface">0</token>')
-    xml.append('<token name="BackSurface">0</token>')
-    xml.append('<token name="LeftSurface">0</token>')
-    xml.append('<token name="RightSurface">0</token>')
+    <bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>
+    <bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>
 
-    xml.append(f'<token name="Material">{token_material(data.get("Material"))}</token>')
-    xml.append('<bool name="Archivable">true</bool>')
-    xml.append(f'<Ref name="Parent">{parent_ref}</Ref>')
+    <float name="Transparency">{data.get("Transparency", 0)}</float>
+    <bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>
 
-    if cls == "SpawnLocation":
-        xml.append('<float name="Duration">5</float>')
-        xml.append('<bool name="Neutral">true</bool>')
+    <token name="Material">{token_material(data.get("Material"))}</token>
+    <token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>
+    <token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>
 
-    xml.append('</Properties>')
-    xml.append('</Item>')
-    return "\n".join(xml)
+    <Ref name="Parent">{parent}</Ref>
 
+  </Properties>
+</Item>
+"""
+
+# =========================
+# INSERT INTO WORKSPACE
+# =========================
 def build_rbxlx(instances):
-    workspace_ref = get_workspace_referent(TEMPLATE)
+    content = ""
+    for inst in instances:
+        content += build_instance(inst, "RBXWorkspace")
 
-    workspace_tag = f'<Item class="Workspace" referent="{workspace_ref}">'
-    ws_start = TEMPLATE.find(workspace_tag)
-    if ws_start == -1:
-        raise ValueError("Workspace block not found in template")
+    # insert before closing roblox tag
+    return TEMPLATE.replace("</roblox>", content + "\n</roblox>")
 
-    props_end = TEMPLATE.find('</Properties>', ws_start)
-    if props_end == -1:
-        raise ValueError("Workspace properties end not found in template")
-
-    ws_close = find_matching_item_close(TEMPLATE, ws_start)
-    if ws_close == -1:
-        raise ValueError("Workspace closing tag not found in template")
-
-    content = "".join(build_instance(inst, workspace_ref) for inst in instances)
-
-    # keep Workspace properties, replace its children, preserve the rest of the template
-    return TEMPLATE[:props_end + len('</Properties>')] + "\n" + content + "\n" + TEMPLATE[ws_close:]
-
+# =========================
+# ROUTE
+# =========================
 @app.route("/publish", methods=["POST"])
 def publish():
     try:
         data = request.get_json(silent=True)
+
         if not data:
             return jsonify({"error": "Invalid JSON"}), 400
 
@@ -1781,27 +1741,33 @@ def publish():
         xml_data = build_rbxlx(instances)
 
         url = f"https://apis.roblox.com/universes/v1/{universe_id}/places/{place_id}/versions"
+
         headers = {
             "x-api-key": api_key,
-            "Content-Type": "application/xml",
+            "Content-Type": "application/xml"
         }
 
+        print("📤 Publishing...")
         res = requests.post(
             url,
             headers=headers,
             params={"versionType": "Published"},
-            data=xml_data,
-            timeout=60,
+            data=xml_data
         )
+
+        print("Status:", res.status_code)
 
         return jsonify({
             "status": res.status_code,
-            "response": res.text,
+            "response": res.text
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# =========================
+# RUN
+# =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
     app.run(host="0.0.0.0", port=port)
