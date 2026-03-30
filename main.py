@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-import json
 import requests
 import uuid
 from xml.sax.saxutils import escape as xml_escape
@@ -21,20 +20,53 @@ def num_list(v, n, default):
     return [(v[i] if i < len(v) else default[i]) for i in range(n)]
 
 # =========================
-# ENUMS
+# ENUMS (REAL VALUES)
 # =========================
 def token_material(v):
     s = str(v).lower()
+
     if "neon" in s:
         return "288"
     if "plastic" in s:
         return "256"
+    if "smoothplastic" in s:
+        return "256"
+    if "wood" in s:
+        return "512"
+    if "slate" in s:
+        return "800"
+    if "concrete" in s:
+        return "816"
+    if "corrodedmetal" in s:
+        return "1040"
+    if "diamondplate" in s:
+        return "1056"
+    if "foil" in s:
+        return "1072"
+    if "grass" in s:
+        return "1280"
+    if "ice" in s:
+        return "1536"
+
     return "256"
+
 
 def token_surface(v):
     s = str(v).lower()
+
+    if "smooth" in s:
+        return "0"
     if "studs" in s:
         return "1"
+    if "inlet" in s:
+        return "2"
+    if "universal" in s:
+        return "3"
+    if "glue" in s:
+        return "4"
+    if "weld" in s:
+        return "5"
+
     return "0"
 
 # =========================
@@ -45,31 +77,52 @@ def build_instance(data, parent):
 
     size = num_list(data.get("Size", [4,4,4]), 3, [4,4,4])
     color = num_list(data.get("Color", [163,162,165]), 3, [163,162,165])
+    cf = num_list(
+        data.get("CFrame", [0,0,0,1,0,0,0,1,0,0,0,1]),
+        12,
+        [0,0,0,1,0,0,0,1,0,0,0,1]
+    )
 
     return f"""
 <Item class="{data.get('ClassName','Part')}" referent="{ref}">
-<Properties>
-<string name="Name">{esc(data.get('Name','Part'))}</string>
+  <Properties>
 
-<Vector3 name="Size">
-<X>{size[0]}</X><Y>{size[1]}</Y><Z>{size[2]}</Z>
-</Vector3>
+    <string name="Name">{esc(data.get('Name','Part'))}</string>
 
-<Color3 name="Color">
-<R>{color[0]/255}</R>
-<G>{color[1]/255}</G>
-<B>{color[2]/255}</B>
-</Color3>
+    <Vector3 name="Size">
+      <X>{size[0]}</X>
+      <Y>{size[1]}</Y>
+      <Z>{size[2]}</Z>
+    </Vector3>
 
-<bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>
-<bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>
+    <CoordinateFrame name="CFrame">
+      <X>{cf[0]}</X><Y>{cf[1]}</Y><Z>{cf[2]}</Z>
+      <R00>{cf[3]}</R00><R01>{cf[4]}</R01><R02>{cf[5]}</R02>
+      <R10>{cf[6]}</R10><R11>{cf[7]}</R11><R12>{cf[8]}</R12>
+      <R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>
+    </CoordinateFrame>
 
-<token name="Material">{token_material(data.get("Material"))}</token>
-<token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>
-<token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>
+    <!-- ✅ THIS IS THE IMPORTANT ONE -->
+    <Color name="Color">
+      <R>{color[0]/255}</R>
+      <G>{color[1]/255}</G>
+      <B>{color[2]/255}</B>
+    </Color>
 
-<Ref name="Parent">{parent}</Ref>
-</Properties>
+    <bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>
+    <bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>
+
+    <float name="Transparency">{data.get("Transparency", 0)}</float>
+    <bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>
+
+    <!-- ✅ REAL ENUM TOKENS -->
+    <token name="Material">{token_material(data.get("Material"))}</token>
+    <token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>
+    <token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>
+
+    <Ref name="Parent">{parent}</Ref>
+
+  </Properties>
 </Item>
 """
 
@@ -1893,7 +1946,12 @@ def publish():
             "Content-Type": "application/xml"
         }
 
-        res = requests.post(url, headers=headers, params={"versionType":"Published"}, data=xml_data)
+        res = requests.post(
+            url,
+            headers=headers,
+            params={"versionType": "Published"},
+            data=xml_data
+        )
 
         return jsonify({
             "status": res.status_code,
@@ -1906,4 +1964,5 @@ def publish():
 # =========================
 # RUN
 # =========================
-app.run(host="0.0.0.0", port=3000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=3000)
