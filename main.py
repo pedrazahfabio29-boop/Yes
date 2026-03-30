@@ -21,51 +21,35 @@ def num_list(v, n, default):
     return [(v[i] if i < len(v) else default[i]) for i in range(n)]
 
 # =========================
-# ENUMS (REAL VALUES)
+# ENUM TOKENS (REAL VALUES)
 # =========================
 def token_material(v):
     s = str(v).lower()
 
-    if "neon" in s:
-        return "288"
-    if "plastic" in s:
-        return "256"
-    if "smoothplastic" in s:
-        return "256"
-    if "wood" in s:
-        return "512"
-    if "slate" in s:
-        return "800"
-    if "concrete" in s:
-        return "816"
-    if "corrodedmetal" in s:
-        return "1040"
-    if "diamondplate" in s:
-        return "1056"
-    if "foil" in s:
-        return "1072"
-    if "grass" in s:
-        return "1280"
-    if "ice" in s:
-        return "1536"
+    if "plastic" in s: return "256"
+    if "smoothplastic" in s: return "256"
+    if "neon" in s: return "288"
+    if "wood" in s: return "512"
+    if "slate" in s: return "800"
+    if "concrete" in s: return "816"
+    if "corrodedmetal" in s: return "1040"
+    if "diamondplate" in s: return "1056"
+    if "foil" in s: return "1072"
+    if "grass" in s: return "1280"
+    if "ice" in s: return "1536"
+    if "crackedlava" in s: return "1792"  # ✅ you asked for this
 
-    return "256"  # fallback
+    return "256"
 
 def token_surface(v):
     s = str(v).lower()
 
-    if "smooth" in s:
-        return "0"
-    if "studs" in s:
-        return "1"
-    if "inlet" in s:
-        return "2"
-    if "universal" in s:
-        return "3"
-    if "glue" in s:
-        return "4"
-    if "weld" in s:
-        return "5"
+    if "smooth" in s: return "0"
+    if "studs" in s: return "1"
+    if "inlet" in s: return "2"
+    if "universal" in s: return "3"
+    if "glue" in s: return "4"
+    if "weld" in s: return "5"
 
     return "0"
 
@@ -102,7 +86,7 @@ def build_instance(data, parent):
       <R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>
     </CoordinateFrame>
 
-    <!-- ✅ REAL COLOR (DO NOT CHANGE THIS) -->
+    <!-- ✅ CORRECT COLOR -->
     <Color name="Color">
       <R>{color[0]/255}</R>
       <G>{color[1]/255}</G>
@@ -115,7 +99,6 @@ def build_instance(data, parent):
     <float name="Transparency">{data.get("Transparency", 0)}</float>
     <bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>
 
-    <!-- ✅ MATERIAL + SURFACES -->
     <token name="Material">{token_material(data.get("Material"))}</token>
     <token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>
     <token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>
@@ -127,7 +110,7 @@ def build_instance(data, parent):
 """
 
 # =========================
-# TEMPLATE
+# TEMPLATE (USE YOUR REAL ONE)
 # =========================
 TEMPLATE = """<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<External>null</External>
@@ -1914,12 +1897,22 @@ return {
 	</SharedStrings>
 </roblox>"""
 
+# =========================
+# INSERT INTO WORKSPACE (IMPORTANT FIX)
+# =========================
 def build_rbxlx(instances):
     content = ""
     for inst in instances:
         content += build_instance(inst, "RBXWorkspace")
 
-    return TEMPLATE.replace("</Item>", "</Item>\n" + content, 1)
+    # 🔥 CRITICAL FIX:
+    # Insert BEFORE closing Workspace item, not just first </Item>
+    insert_target = '</Item>\n</roblox>'
+
+    return TEMPLATE.replace(
+        insert_target,
+        content + '\n' + insert_target
+    )
 
 # =========================
 # ROUTE
@@ -1965,7 +1958,7 @@ def publish():
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# RUN (FIXED FOR DEPLOY)
+# RUN (RENDER COMPATIBLE)
 # =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
