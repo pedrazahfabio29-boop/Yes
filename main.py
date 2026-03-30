@@ -9,8 +9,7 @@ app = Flask(__name__)
 
 # =========================================================
 # HARD-CODED REAL TEMPLATE
-# Paste your full rbxlx template here exactly once.
-# Keep it raw inside triple quotes.
+# Paste your REAL rbxlx template here once.
 # =========================================================
 TEMPLATE = r"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<External>null</External>
@@ -1648,12 +1647,51 @@ def find_matching_item_close(template_text: str, open_index: int) -> int:
             if depth == 0:
                 return next_close
 
+def strip_workspace_items(inner_text: str, classes_to_remove={"Part", "SpawnLocation"}) -> str:
+    """
+    Removes existing top-level Workspace children of the given classes,
+    but preserves everything else inside Workspace (Camera, Terrain, services, etc.).
+    """
+    out = []
+    i = 0
+    while i < len(inner_text):
+        start = inner_text.find("<Item ", i)
+        if start == -1:
+            out.append(inner_text[i:])
+            break
+
+        # keep text before this item
+        out.append(inner_text[i:start])
+
+        header_end = inner_text.find(">", start)
+        if header_end == -1:
+            # malformed, keep the rest and stop
+            out.append(inner_text[start:])
+            break
+
+        header = inner_text[start:header_end + 1]
+        m = re.search(r'<Item class="([^"]+)" referent="[^"]+">', header)
+        cls = m.group(1) if m else None
+
+        item_close = find_matching_item_close(inner_text, start)
+        item_block_end = item_close + len("</Item>")
+        item_block = inner_text[start:item_block_end]
+
+        if cls in classes_to_remove:
+            # skip old parts/spawnlocations
+            pass
+        else:
+            out.append(item_block)
+
+        i = item_block_end
+
+    return "".join(out)
+
 # =========================================================
 # ENUM TOKENS
 # =========================================================
 def token_material(v):
     s = str(v).lower()
-
     if "plastic" in s:
         return "256"
     if "smoothplastic" in s:
@@ -1678,12 +1716,10 @@ def token_material(v):
         return "1536"
     if "crackedlava" in s:
         return "1792"
-
     return "256"
 
 def token_surface(v):
     s = str(v).lower()
-
     if "smooth" in s:
         return "0"
     if "studs" in s:
@@ -1696,7 +1732,6 @@ def token_surface(v):
         return "4"
     if "weld" in s:
         return "5"
-
     return "0"
 
 # =========================================================
@@ -1729,11 +1764,10 @@ def build_instance(data, parent_ref):
     xml.append(f"<R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>")
     xml.append("</CoordinateFrame>")
 
-    # Match your real template's color style
+    # Working color method: Color3 named Color, no BrickColor overwrite
     xml.append(
-        f'<Color3 name="Color3"><R>{color[0]/255}</R><G>{color[1]/255}</G><B>{color[2]/255}</B></Color3>'
+        f'<Color3 name="Color"><R>{color[0]/255}</R><G>{color[1]/255}</G><B>{color[2]/255}</B></Color3>'
     )
-    xml.append('<int name="BrickColor">194</int>')
 
     xml.append(f'<bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>')
     xml.append(f'<bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>')
@@ -1769,11 +1803,11 @@ def build_instance(data, parent_ref):
 def build_rbxlx(instances):
     template = TEMPLATE
     if "PASTE_YOUR_REAL_RBXLX_TEMPLATE_HERE" in template:
-        raise ValueError("Paste your real template into the TEMPLATE string first.")
+        raise ValueError("Paste your real template into TEMPLATE first.")
 
     workspace_ref = get_workspace_referent(template)
-
     workspace_open = f'<Item class="Workspace" referent="{workspace_ref}">'
+
     ws_start = template.find(workspace_open)
     if ws_start == -1:
         raise ValueError("Workspace block not found in template")
@@ -1786,12 +1820,18 @@ def build_rbxlx(instances):
     if ws_close == -1:
         raise ValueError("Workspace closing </Item> not found")
 
-    content = ""
-    for inst in instances:
-        content += build_instance(inst, workspace_ref) + "\n"
+    inner_start = props_end + len("</Properties>")
+    inner = template[inner_start:ws_close]
 
-    # Replace only the children inside Workspace, preserve the rest of the real template
-    return template[:props_end + len("</Properties>")] + "\n" + content + template[ws_close:]
+    # Remove old Parts/SpawnLocations from Workspace, keep Camera/Terrain/etc.
+    cleaned_inner = strip_workspace_items(inner, {"Part", "SpawnLocation"})
+
+    # Add the new generated items at the end of Workspace
+    generated = ""
+    for inst in instances:
+        generated += build_instance(inst, workspace_ref) + "\n"
+
+    return template[:inner_start] + cleaned_inner + "\n" + generated + template[ws_close:]
 
 # =========================================================
 # ROUTE
