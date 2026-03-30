@@ -2,116 +2,12 @@ from flask import Flask, request, jsonify
 import requests
 import uuid
 import os
+import re
 from xml.sax.saxutils import escape as xml_escape
 
 app = Flask(__name__)
 
-# =========================
-# HELPERS
-# =========================
-def esc(v):
-    return xml_escape(str(v))
-
-def new_ref():
-    return "RBX" + uuid.uuid4().hex.upper()
-
-def num_list(v, n, default):
-    if not isinstance(v, list):
-        return default
-    return [(v[i] if i < len(v) else default[i]) for i in range(n)]
-
-# =========================
-# ENUM TOKENS (REAL VALUES)
-# =========================
-def token_material(v):
-    s = str(v).lower()
-
-    if "plastic" in s: return "256"
-    if "smoothplastic" in s: return "256"
-    if "neon" in s: return "288"
-    if "wood" in s: return "512"
-    if "slate" in s: return "800"
-    if "concrete" in s: return "816"
-    if "corrodedmetal" in s: return "1040"
-    if "diamondplate" in s: return "1056"
-    if "foil" in s: return "1072"
-    if "grass" in s: return "1280"
-    if "ice" in s: return "1536"
-    if "crackedlava" in s: return "1792"  # ✅ you asked for this
-
-    return "256"
-
-def token_surface(v):
-    s = str(v).lower()
-
-    if "smooth" in s: return "0"
-    if "studs" in s: return "1"
-    if "inlet" in s: return "2"
-    if "universal" in s: return "3"
-    if "glue" in s: return "4"
-    if "weld" in s: return "5"
-
-    return "0"
-
-# =========================
-# BUILD INSTANCE
-# =========================
-def build_instance(data, parent):
-    ref = new_ref()
-
-    size = num_list(data.get("Size", [4,4,4]), 3, [4,4,4])
-    color = num_list(data.get("Color", [163,162,165]), 3, [163,162,165])
-    cf = num_list(
-        data.get("CFrame", [0,0,0,1,0,0,0,1,0,0,0,1]),
-        12,
-        [0,0,0,1,0,0,0,1,0,0,0,1]
-    )
-
-    return f"""
-<Item class="{data.get('ClassName','Part')}" referent="{ref}">
-  <Properties>
-
-    <string name="Name">{esc(data.get('Name','Part'))}</string>
-
-    <Vector3 name="Size">
-      <X>{size[0]}</X>
-      <Y>{size[1]}</Y>
-      <Z>{size[2]}</Z>
-    </Vector3>
-
-    <CoordinateFrame name="CFrame">
-      <X>{cf[0]}</X><Y>{cf[1]}</Y><Z>{cf[2]}</Z>
-      <R00>{cf[3]}</R00><R01>{cf[4]}</R01><R02>{cf[5]}</R02>
-      <R10>{cf[6]}</R10><R11>{cf[7]}</R11><R12>{cf[8]}</R12>
-      <R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>
-    </CoordinateFrame>
-
-    <!-- ✅ CORRECT COLOR -->
-    <Color name="Color">
-      <R>{color[0]/255}</R>
-      <G>{color[1]/255}</G>
-      <B>{color[2]/255}</B>
-    </Color>
-
-    <bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>
-    <bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>
-
-    <float name="Transparency">{data.get("Transparency", 0)}</float>
-    <bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>
-
-    <token name="Material">{token_material(data.get("Material"))}</token>
-    <token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>
-    <token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>
-
-    <Ref name="Parent">{parent}</Ref>
-
-  </Properties>
-</Item>
-"""
-
-# =========================
-# TEMPLATE (USE YOUR REAL ONE)
-# =========================
+# Paste your REAL rbxlx template here
 TEMPLATE = """<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<External>null</External>
 	<External>nil</External>
@@ -217,195 +113,6 @@ TEMPLATE = """<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi=
 			<BinaryString name="Tags"></BinaryString>
 			<UniqueId name="UniqueId">1bdada4610e5816909da199b00000002</UniqueId>
 		</Properties>
-<Item class="Part" referent="RBX9AECA672DCD64519AC288501CBAC21AF">
-<Properties>
-<string name="Name">Part3</string>
-<Vector3 name="Size"><X>9.0</X><Y>15.0</Y><Z>9.0</Z></Vector3>
-<CoordinateFrame name="CFrame">
-<X>-3.5</X><Y>7.5</Y><Z>-30.0</Z>
-<R00>1.0</R00><R01>0.0</R01><R02>0.0</R02>
-<R10>0.0</R10><R11>1.0</R11><R12>0.0</R12>
-<R20>0.0</R20><R21>0.0</R21><R22>1.0</R22>
-</CoordinateFrame>
-<Color3 name="Color3"><R>0.6392156862745098</R><G>0.6352941176470588</G><B>0.6470588235294118</B></Color3>
-<int name="BrickColor">194</int>
-<bool name="Anchored">true</bool>
-<bool name="CanCollide">true</bool>
-<bool name="CanTouch">true</bool>
-<bool name="CanQuery">true</bool>
-<float name="Transparency">0</float>
-<float name="Reflectance">0</float>
-<bool name="CastShadow">true</bool>
-<bool name="Locked">false</bool>
-<token name="TopSurface">0</token>
-<token name="BottomSurface">0</token>
-<token name="FrontSurface">0</token>
-<token name="BackSurface">0</token>
-<token name="LeftSurface">0</token>
-<token name="RightSurface">0</token>
-<token name="Material">256</token>
-<bool name="Archivable">true</bool>
-<Ref name="Parent">RBXB781519A068442EAB4447566E5E6E980</Ref>
-</Properties>
-</Item>
-<Item class="Part" referent="RBX848376BEBDC3496DB752F59391836244">
-<Properties>
-<string name="Name">Part2</string>
-<Vector3 name="Size"><X>9.0</X><Y>15.0</Y><Z>9.0</Z></Vector3>
-<CoordinateFrame name="CFrame">
-<X>-17.5</X><Y>7.5</Y><Z>-30.0</Z>
-<R00>1.0</R00><R01>0.0</R01><R02>0.0</R02>
-<R10>0.0</R10><R11>1.0</R11><R12>0.0</R12>
-<R20>0.0</R20><R21>0.0</R21><R22>1.0</R22>
-</CoordinateFrame>
-<Color3 name="Color3"><R>0.6392156862745098</R><G>0.6352941176470588</G><B>0.6470588235294118</B></Color3>
-<int name="BrickColor">194</int>
-<bool name="Anchored">true</bool>
-<bool name="CanCollide">true</bool>
-<bool name="CanTouch">true</bool>
-<bool name="CanQuery">true</bool>
-<float name="Transparency">0</float>
-<float name="Reflectance">0</float>
-<bool name="CastShadow">true</bool>
-<bool name="Locked">false</bool>
-<token name="TopSurface">0</token>
-<token name="BottomSurface">0</token>
-<token name="FrontSurface">0</token>
-<token name="BackSurface">0</token>
-<token name="LeftSurface">0</token>
-<token name="RightSurface">0</token>
-<token name="Material">256</token>
-<bool name="Archivable">true</bool>
-<Ref name="Parent">RBXB781519A068442EAB4447566E5E6E980</Ref>
-</Properties>
-</Item>
-<Item class="Part" referent="RBXA6B3B0D1C69B4BE5AA192D7C2FE37966">
-<Properties>
-<string name="Name">Part</string>
-<Vector3 name="Size"><X>41.0</X><Y>7.0</Y><Z>13.0</Z></Vector3>
-<CoordinateFrame name="CFrame">
-<X>-2.5</X><Y>17.5</Y><Z>-30.0</Z>
-<R00>1.0</R00><R01>0.0</R01><R02>0.0</R02>
-<R10>0.0</R10><R11>1.0</R11><R12>0.0</R12>
-<R20>0.0</R20><R21>0.0</R21><R22>1.0</R22>
-</CoordinateFrame>
-<Color3 name="Color3"><R>1.0</R><G>0.0</G><B>0.0</B></Color3>
-<int name="BrickColor">194</int>
-<bool name="Anchored">true</bool>
-<bool name="CanCollide">true</bool>
-<bool name="CanTouch">true</bool>
-<bool name="CanQuery">true</bool>
-<float name="Transparency">0</float>
-<float name="Reflectance">0</float>
-<bool name="CastShadow">true</bool>
-<bool name="Locked">false</bool>
-<token name="TopSurface">0</token>
-<token name="BottomSurface">0</token>
-<token name="FrontSurface">0</token>
-<token name="BackSurface">0</token>
-<token name="LeftSurface">0</token>
-<token name="RightSurface">0</token>
-<token name="Material">288</token>
-<bool name="Archivable">true</bool>
-<Ref name="Parent">RBXB781519A068442EAB4447566E5E6E980</Ref>
-</Properties>
-</Item>
-<Item class="Part" referent="RBXDCEA18C1147F4798A0D8928E99BA0328">
-<Properties>
-<string name="Name">Baseplate</string>
-<Vector3 name="Size"><X>2048.0</X><Y>16.0</Y><Z>2048.0</Z></Vector3>
-<CoordinateFrame name="CFrame">
-<X>0.0</X><Y>-8.0</Y><Z>0.0</Z>
-<R00>1.0</R00><R01>0.0</R01><R02>0.0</R02>
-<R10>0.0</R10><R11>1.0</R11><R12>0.0</R12>
-<R20>0.0</R20><R21>0.0</R21><R22>1.0</R22>
-</CoordinateFrame>
-<Color3 name="Color3"><R>0.3568627450980392</R><G>0.3568627450980392</G><B>0.3568627450980392</B></Color3>
-<int name="BrickColor">194</int>
-<bool name="Anchored">true</bool>
-<bool name="CanCollide">true</bool>
-<bool name="CanTouch">true</bool>
-<bool name="CanQuery">true</bool>
-<float name="Transparency">0</float>
-<float name="Reflectance">0</float>
-<bool name="CastShadow">true</bool>
-<bool name="Locked">false</bool>
-<token name="TopSurface">1</token>
-<token name="BottomSurface">0</token>
-<token name="FrontSurface">0</token>
-<token name="BackSurface">0</token>
-<token name="LeftSurface">0</token>
-<token name="RightSurface">0</token>
-<token name="Material">256</token>
-<bool name="Archivable">true</bool>
-<Ref name="Parent">RBXB781519A068442EAB4447566E5E6E980</Ref>
-</Properties>
-</Item>
-<Item class="SpawnLocation" referent="RBX7CB68E157FE449209AB924ED4D9DEB5D">
-<Properties>
-<string name="Name">SpawnLocation</string>
-<Vector3 name="Size"><X>12.0</X><Y>1.0</Y><Z>12.0</Z></Vector3>
-<CoordinateFrame name="CFrame">
-<X>0.0</X><Y>0.5</Y><Z>0.0</Z>
-<R00>1.0</R00><R01>0.0</R01><R02>0.0</R02>
-<R10>0.0</R10><R11>1.0</R11><R12>0.0</R12>
-<R20>0.0</R20><R21>0.0</R21><R22>1.0</R22>
-</CoordinateFrame>
-<Color3 name="Color3"><R>0.6392156862745098</R><G>0.6352941176470588</G><B>0.6470588235294118</B></Color3>
-<int name="BrickColor">194</int>
-<bool name="Anchored">true</bool>
-<bool name="CanCollide">true</bool>
-<bool name="CanTouch">true</bool>
-<bool name="CanQuery">true</bool>
-<float name="Transparency">0</float>
-<float name="Reflectance">0</float>
-<bool name="CastShadow">true</bool>
-<bool name="Locked">false</bool>
-<token name="TopSurface">0</token>
-<token name="BottomSurface">0</token>
-<token name="FrontSurface">0</token>
-<token name="BackSurface">0</token>
-<token name="LeftSurface">0</token>
-<token name="RightSurface">0</token>
-<token name="Material">256</token>
-<bool name="Archivable">true</bool>
-<Ref name="Parent">RBXB781519A068442EAB4447566E5E6E980</Ref>
-<float name="Duration">5</float>
-<bool name="Neutral">true</bool>
-</Properties>
-</Item>
-<Item class="Part" referent="RBXF154B636A92E491C9CDE768CB259D873">
-<Properties>
-<string name="Name">Part</string>
-<Vector3 name="Size"><X>9.0</X><Y>15.0</Y><Z>9.0</Z></Vector3>
-<CoordinateFrame name="CFrame">
-<X>13.5</X><Y>7.5</Y><Z>-30.0</Z>
-<R00>1.0</R00><R01>0.0</R01><R02>0.0</R02>
-<R10>0.0</R10><R11>1.0</R11><R12>0.0</R12>
-<R20>0.0</R20><R21>0.0</R21><R22>1.0</R22>
-</CoordinateFrame>
-<Color3 name="Color3"><R>0.6392156862745098</R><G>0.6352941176470588</G><B>0.6470588235294118</B></Color3>
-<int name="BrickColor">194</int>
-<bool name="Anchored">true</bool>
-<bool name="CanCollide">true</bool>
-<bool name="CanTouch">true</bool>
-<bool name="CanQuery">true</bool>
-<float name="Transparency">0</float>
-<float name="Reflectance">0</float>
-<bool name="CastShadow">true</bool>
-<bool name="Locked">false</bool>
-<token name="TopSurface">0</token>
-<token name="BottomSurface">0</token>
-<token name="FrontSurface">0</token>
-<token name="BackSurface">0</token>
-<token name="LeftSurface">0</token>
-<token name="RightSurface">0</token>
-<token name="Material">256</token>
-<bool name="Archivable">true</bool>
-<Ref name="Parent">RBXB781519A068442EAB4447566E5E6E980</Ref>
-</Properties>
-</Item>
-
 		<Item class="Camera" referent="RBX2F9BFB1BE9344528BF07AD8FDF8D6E5A">
 			<Properties>
 				<CoordinateFrame name="CFrame">
@@ -1897,31 +1604,169 @@ return {
 	</SharedStrings>
 </roblox>"""
 
-# =========================
-# INSERT INTO WORKSPACE (IMPORTANT FIX)
-# =========================
-def build_rbxlx(instances):
-    content = ""
-    for inst in instances:
-        content += build_instance(inst, "RBXWorkspace")
+def esc(v):
+    return xml_escape(str(v))
 
-    # 🔥 CRITICAL FIX:
-    # Insert BEFORE closing Workspace item, not just first </Item>
-    insert_target = '</Item>\n</roblox>'
+def new_ref():
+    return "RBX" + uuid.uuid4().hex.upper()
 
-    return TEMPLATE.replace(
-        insert_target,
-        content + '\n' + insert_target
+def num_list(v, n, default):
+    if not isinstance(v, list):
+        return default
+    return [(v[i] if i < len(v) else default[i]) for i in range(n)]
+
+def token_material(v):
+    s = str(v).lower()
+    if "neon" in s:
+        return "288"
+    if "plastic" in s:
+        return "256"
+    if "smoothplastic" in s:
+        return "256"
+    if "wood" in s:
+        return "512"
+    if "slate" in s:
+        return "800"
+    if "concrete" in s:
+        return "816"
+    if "corrodedmetal" in s:
+        return "1040"
+    if "diamondplate" in s:
+        return "1056"
+    if "foil" in s:
+        return "1072"
+    if "grass" in s:
+        return "1280"
+    if "ice" in s:
+        return "1536"
+    return "256"
+
+def token_surface(v):
+    s = str(v).lower()
+    if "smooth" in s:
+        return "0"
+    if "studs" in s:
+        return "1"
+    if "inlet" in s:
+        return "2"
+    if "universal" in s:
+        return "3"
+    if "glue" in s:
+        return "4"
+    if "weld" in s:
+        return "5"
+    return "0"
+
+def get_workspace_referent(template_text):
+    m = re.search(r'<Item class="Workspace" referent="([^"]+)">', template_text)
+    if not m:
+        raise ValueError("Workspace referent not found in template")
+    return m.group(1)
+
+def find_matching_item_close(template_text, open_item_index):
+    depth = 0
+    i = open_item_index
+    while i < len(template_text):
+        next_open = template_text.find("<Item ", i)
+        next_close = template_text.find("</Item>", i)
+
+        if next_close == -1:
+            return -1
+
+        if next_open != -1 and next_open < next_close:
+            depth += 1
+            i = next_open + 5
+        else:
+            depth -= 1
+            i = next_close + len("</Item>")
+            if depth == 0:
+                return next_close
+    return -1
+
+def build_instance(data, parent_ref):
+    ref = new_ref()
+
+    size = num_list(data.get("Size", [4, 4, 4]), 3, [4, 4, 4])
+    color = num_list(data.get("Color", [163, 162, 165]), 3, [163, 162, 165])
+    cf = num_list(
+        data.get("CFrame", [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]),
+        12,
+        [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]
     )
 
-# =========================
-# ROUTE
-# =========================
+    cls = data.get("ClassName", "Part")
+    name = data.get("Name", "Part")
+
+    xml = []
+    xml.append(f'<Item class="{cls}" referent="{ref}">')
+    xml.append('<Properties>')
+    xml.append(f'<string name="Name">{esc(name)}</string>')
+
+    xml.append(f'<Vector3 name="Size"><X>{size[0]}</X><Y>{size[1]}</Y><Z>{size[2]}</Z></Vector3>')
+    xml.append('<CoordinateFrame name="CFrame">')
+    xml.append(f'<X>{cf[0]}</X><Y>{cf[1]}</Y><Z>{cf[2]}</Z>')
+    xml.append(f'<R00>{cf[3]}</R00><R01>{cf[4]}</R01><R02>{cf[5]}</R02>')
+    xml.append(f'<R10>{cf[6]}</R10><R11>{cf[7]}</R11><R12>{cf[8]}</R12>')
+    xml.append(f'<R20>{cf[9]}</R20><R21>{cf[10]}</R21><R22>{cf[11]}</R22>')
+    xml.append('</CoordinateFrame>')
+
+    # Match the real template structure
+    xml.append(f'<Color3 name="Color3"><R>{color[0]/255}</R><G>{color[1]/255}</G><B>{color[2]/255}</B></Color3>')
+    xml.append('<int name="BrickColor">194</int>')
+
+    xml.append(f'<bool name="Anchored">{"true" if data.get("Anchored", True) else "false"}</bool>')
+    xml.append(f'<bool name="CanCollide">{"true" if data.get("CanCollide", True) else "false"}</bool>')
+    xml.append(f'<bool name="CanTouch">{"true" if data.get("CanTouch", True) else "false"}</bool>')
+    xml.append(f'<bool name="CanQuery">{"true" if data.get("CanQuery", True) else "false"}</bool>')
+    xml.append(f'<float name="Transparency">{data.get("Transparency", 0)}</float>')
+    xml.append(f'<float name="Reflectance">{data.get("Reflectance", 0)}</float>')
+    xml.append(f'<bool name="CastShadow">{"true" if data.get("CastShadow", True) else "false"}</bool>')
+    xml.append(f'<bool name="Locked">{"true" if data.get("Locked", False) else "false"}</bool>')
+
+    xml.append(f'<token name="TopSurface">{token_surface(data.get("TopSurface"))}</token>')
+    xml.append(f'<token name="BottomSurface">{token_surface(data.get("BottomSurface"))}</token>')
+    xml.append('<token name="FrontSurface">0</token>')
+    xml.append('<token name="BackSurface">0</token>')
+    xml.append('<token name="LeftSurface">0</token>')
+    xml.append('<token name="RightSurface">0</token>')
+
+    xml.append(f'<token name="Material">{token_material(data.get("Material"))}</token>')
+    xml.append('<bool name="Archivable">true</bool>')
+    xml.append(f'<Ref name="Parent">{parent_ref}</Ref>')
+
+    if cls == "SpawnLocation":
+        xml.append('<float name="Duration">5</float>')
+        xml.append('<bool name="Neutral">true</bool>')
+
+    xml.append('</Properties>')
+    xml.append('</Item>')
+    return "\n".join(xml)
+
+def build_rbxlx(instances):
+    workspace_ref = get_workspace_referent(TEMPLATE)
+
+    workspace_tag = f'<Item class="Workspace" referent="{workspace_ref}">'
+    ws_start = TEMPLATE.find(workspace_tag)
+    if ws_start == -1:
+        raise ValueError("Workspace block not found in template")
+
+    props_end = TEMPLATE.find('</Properties>', ws_start)
+    if props_end == -1:
+        raise ValueError("Workspace properties end not found in template")
+
+    ws_close = find_matching_item_close(TEMPLATE, ws_start)
+    if ws_close == -1:
+        raise ValueError("Workspace closing tag not found in template")
+
+    content = "".join(build_instance(inst, workspace_ref) for inst in instances)
+
+    # keep Workspace properties, replace its children, preserve the rest of the template
+    return TEMPLATE[:props_end + len('</Properties>')] + "\n" + content + "\n" + TEMPLATE[ws_close:]
+
 @app.route("/publish", methods=["POST"])
 def publish():
     try:
         data = request.get_json(silent=True)
-
         if not data:
             return jsonify({"error": "Invalid JSON"}), 400
 
@@ -1936,30 +1781,27 @@ def publish():
         xml_data = build_rbxlx(instances)
 
         url = f"https://apis.roblox.com/universes/v1/{universe_id}/places/{place_id}/versions"
-
         headers = {
             "x-api-key": api_key,
-            "Content-Type": "application/xml"
+            "Content-Type": "application/xml",
         }
 
         res = requests.post(
             url,
             headers=headers,
             params={"versionType": "Published"},
-            data=xml_data
+            data=xml_data,
+            timeout=60,
         )
 
         return jsonify({
             "status": res.status_code,
-            "response": res.text
+            "response": res.text,
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# =========================
-# RUN (RENDER COMPATIBLE)
-# =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
     app.run(host="0.0.0.0", port=port)
