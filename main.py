@@ -1628,14 +1628,11 @@ def get_workspace_referent(template_text):
 def find_matching_item_close(text, open_index):
     depth = 0
     i = open_index
-
     while True:
         next_open = text.find("<Item ", i)
         next_close = text.find("</Item>", i)
-
         if next_close == -1:
             raise ValueError("Missing </Item>")
-
         if next_open != -1 and next_open < next_close:
             depth += 1
             i = next_open + 5
@@ -1648,30 +1645,49 @@ def find_matching_item_close(text, open_index):
 def strip_workspace_items(inner, remove={"Part","SpawnLocation","Sound"}):
     out = []
     i = 0
-
     while i < len(inner):
         start = inner.find("<Item ", i)
         if start == -1:
             out.append(inner[i:])
             break
-
         out.append(inner[i:start])
-
         header_end = inner.find(">", start)
         header = inner[start:header_end+1]
-
         m = re.search(r'class="([^"]+)"', header)
         cls = m.group(1) if m else None
-
         close = find_matching_item_close(inner, start)
         block = inner[start:close+7]
-
         if cls not in remove:
             out.append(block)
-
         i = close + 7
-
     return "".join(out)
+
+# =========================================================
+# NEW: STUDIO LITE STYLE THUMBNAIL CONVERTER + SAFETY CHECK
+# =========================================================
+def convert_to_thumbnail(tex):
+    """Convert user assets to rbxthumb:// but PROTECT built-in Roblox textures"""
+    if not tex:
+        return ""
+    tex = str(tex).strip()
+    if not tex:
+        return ""
+
+    # 🔥 SAFETY CHECK: Never thumbnail official Roblox built-in textures
+    protected = {
+        "rbxasset://textures/SpawnLocation.png",
+        # Add any other built-in textures you want protected here
+    }
+    if tex in protected or tex.startswith("rbxasset://textures/"):
+        return tex  # ← Leave SpawnLocation and other built-ins untouched
+
+    # Extract numeric asset ID (only convert real uploaded assets)
+    match = re.search(r'(\d+)', tex)
+    if not match:
+        return tex  # no ID found → leave as-is
+
+    asset_id = match.group(1)
+    return f"rbxthumb://type=Asset&id={asset_id}&w=420&h=420"
 
 # =========================================================
 # TOKENS (UNCHANGED)
@@ -1720,12 +1736,16 @@ def token_face(v):
     return "5"
 
 # =========================================================
-# BUILDERS (FULLY PRESERVED)
+# BUILDERS (build_decal uses the safe converter)
 # =========================================================
 def build_decal(data, parent):
     ref = new_ref()
     tex = str(data.get("Texture","")).strip()
-    if not tex: return ""
+    if not tex:
+        return ""
+
+    # Use the safe thumbnail converter
+    thumbnail_tex = convert_to_thumbnail(tex)
 
     return f"""
 <Item class="Decal" referent="{ref}">
@@ -1733,7 +1753,7 @@ def build_decal(data, parent):
 <string name="Name">{esc(data.get("Name","Decal"))}</string>
 <token name="Face">{token_face(data.get("Face"))}</token>
 <float name="Transparency">{data.get("Transparency",0)}</float>
-<Content name="Texture"><url>{esc(tex)}</url></Content>
+<Content name="Texture"><url>{esc(thumbnail_tex)}</url></Content>
 <bool name="Archivable">true</bool>
 <Ref name="Parent">{parent}</Ref>
 </Properties>
@@ -1778,7 +1798,6 @@ def build_instance(data, parent):
     xml.append(f'<Ref name="Parent">{parent}</Ref>')
     xml.append("</Properties>")
 
-    # DECALS INSIDE PART
     if "Decals" in data:
         for d in data["Decals"]:
             xml.append(build_decal(d, ref))
@@ -1787,30 +1806,22 @@ def build_instance(data, parent):
     return "\n".join(xml)
 
 # =========================================================
-# BUILD RBXLX
+# BUILD RBXLX + ROUTE (unchanged)
 # =========================================================
 def build_rbxlx(instances):
     ws_ref = get_workspace_referent(TEMPLATE)
-
     ws_start = TEMPLATE.find(f'<Item class="Workspace" referent="{ws_ref}">')
     props_end = TEMPLATE.find("</Properties>", ws_start)
     ws_close = find_matching_item_close(TEMPLATE, ws_start)
-
     inner = TEMPLATE[props_end+13:ws_close]
     cleaned = strip_workspace_items(inner)
-
     generated = "\n".join(build_instance(i, ws_ref) for i in instances)
-
     return TEMPLATE[:props_end+13] + cleaned + generated + TEMPLATE[ws_close:]
 
-# =========================================================
-# ROUTE
-# =========================================================
 @app.route("/publish", methods=["POST"])
 def publish():
     try:
         data = request.get_json()
-
         instances = data.get("instances", [])
         api_key = data.get("apiKey")
         universe_id = data.get("universeId")
@@ -1822,7 +1833,7 @@ def publish():
             f"https://apis.roblox.com/universes/v1/{universe_id}/places/{place_id}/versions",
             headers={"x-api-key": api_key, "Content-Type": "application/xml"},
             params={"versionType": "Published"},
-            data=xml_data.encode("utf-8")  # 💡 IMPORTANT FIX
+            data=xml_data.encode("utf-8")
         )
 
         return jsonify({"status": res.status_code, "response": res.text})
