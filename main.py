@@ -1663,34 +1663,30 @@ def strip_workspace_items(inner, remove={"Part","SpawnLocation","Sound"}):
     return "".join(out)
 
 # =========================================================
-# NEW: STUDIO LITE STYLE THUMBNAIL CONVERTER + SAFETY CHECK
+# THUMBNAIL CONVERTER + SPAWNLOCATION SAFETY (unchanged)
 # =========================================================
 def convert_to_thumbnail(tex):
-    """Convert user assets to rbxthumb:// but PROTECT built-in Roblox textures"""
     if not tex:
         return ""
     tex = str(tex).strip()
     if not tex:
         return ""
 
-    # 🔥 SAFETY CHECK: Never thumbnail official Roblox built-in textures
     protected = {
         "rbxasset://textures/SpawnLocation.png",
-        # Add any other built-in textures you want protected here
     }
     if tex in protected or tex.startswith("rbxasset://textures/"):
-        return tex  # ← Leave SpawnLocation and other built-ins untouched
+        return tex
 
-    # Extract numeric asset ID (only convert real uploaded assets)
     match = re.search(r'(\d+)', tex)
     if not match:
-        return tex  # no ID found → leave as-is
+        return tex
 
     asset_id = match.group(1)
     return f"rbxthumb://type=Asset&id={asset_id}&w=420&h=420"
 
 # =========================================================
-# TOKENS (UNCHANGED)
+# TOKENS (unchanged)
 # =========================================================
 def token_material(v):
     s = str(v).lower()
@@ -1736,7 +1732,7 @@ def token_face(v):
     return "5"
 
 # =========================================================
-# BUILDERS (build_decal uses the safe converter)
+# BUILDERS
 # =========================================================
 def build_decal(data, parent):
     ref = new_ref()
@@ -1744,7 +1740,6 @@ def build_decal(data, parent):
     if not tex:
         return ""
 
-    # Use the safe thumbnail converter
     thumbnail_tex = convert_to_thumbnail(tex)
 
     return f"""
@@ -1754,6 +1749,22 @@ def build_decal(data, parent):
 <token name="Face">{token_face(data.get("Face"))}</token>
 <float name="Transparency">{data.get("Transparency",0)}</float>
 <Content name="Texture"><url>{esc(thumbnail_tex)}</url></Content>
+<bool name="Archivable">true</bool>
+<Ref name="Parent">{parent}</Ref>
+</Properties>
+</Item>
+"""
+
+def build_sound(data, parent):  # ← NEW
+    ref = new_ref()
+    return f"""
+<Item class="Sound" referent="{ref}">
+<Properties>
+<string name="Name">{esc(data.get("Name","Sound"))}</string>
+<Content name="SoundId"><url>{esc(data.get("SoundId",""))}</url></Content>
+<float name="Volume">{data.get("Volume",1.0)}</float>
+<float name="PlaybackSpeed">{data.get("PlaybackSpeed",1.0)}</float>
+<bool name="Looped">{str(data.get("Looped",False)).lower()}</bool>
 <bool name="Archivable">true</bool>
 <Ref name="Parent">{parent}</Ref>
 </Properties>
@@ -1806,7 +1817,7 @@ def build_instance(data, parent):
     return "\n".join(xml)
 
 # =========================================================
-# BUILD RBXLX + ROUTE (unchanged)
+# BUILD RBXLX (now supports Sounds)
 # =========================================================
 def build_rbxlx(instances):
     ws_ref = get_workspace_referent(TEMPLATE)
@@ -1815,9 +1826,19 @@ def build_rbxlx(instances):
     ws_close = find_matching_item_close(TEMPLATE, ws_start)
     inner = TEMPLATE[props_end+13:ws_close]
     cleaned = strip_workspace_items(inner)
-    generated = "\n".join(build_instance(i, ws_ref) for i in instances)
+
+    def build_item(data, parent):
+        if data.get("ClassName") == "Sound":
+            return build_sound(data, parent)
+        return build_instance(data, parent)
+
+    generated = "\n".join(build_item(i, ws_ref) for i in instances)
+
     return TEMPLATE[:props_end+13] + cleaned + generated + TEMPLATE[ws_close:]
 
+# =========================================================
+# ROUTE (unchanged)
+# =========================================================
 @app.route("/publish", methods=["POST"])
 def publish():
     try:
