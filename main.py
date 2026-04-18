@@ -1663,30 +1663,24 @@ def strip_workspace_items(inner, remove={"Part","SpawnLocation","Sound"}):
     return "".join(out)
 
 # =========================================================
-# THUMBNAIL CONVERTER + SPAWNLOCATION SAFETY (unchanged)
+# THUMBNAIL CONVERTER + SAFETY
 # =========================================================
 def convert_to_thumbnail(tex):
-    if not tex:
-        return ""
+    if not tex: return ""
     tex = str(tex).strip()
-    if not tex:
-        return ""
+    if not tex: return ""
 
-    protected = {
-        "rbxasset://textures/SpawnLocation.png",
-    }
+    protected = {"rbxasset://textures/SpawnLocation.png"}
     if tex in protected or tex.startswith("rbxasset://textures/"):
         return tex
 
     match = re.search(r'(\d+)', tex)
-    if not match:
-        return tex
-
+    if not match: return tex
     asset_id = match.group(1)
     return f"rbxthumb://type=Asset&id={asset_id}&w=420&h=420"
 
 # =========================================================
-# TOKENS (unchanged)
+# TOKENS
 # =========================================================
 def token_material(v):
     s = str(v).lower()
@@ -1707,11 +1701,11 @@ def token_material(v):
 def token_surface(v):
     s = str(v).lower()
     if "smooth" in s: return "0"
-    if "studs" in s: return "1"
-    if "inlet" in s: return "2"
-    if "universal" in s: return "3"
-    if "glue" in s: return "4"
-    if "weld" in s: return "5"
+    if "glue" in s: return "1"
+    if "weld" in s: return "2"
+    if "studs" in s: return "3"
+    if "inlet" in s: return "4"
+    if "universal" in s: return "5"
     return "0"
 
 def token_shape(v):
@@ -1737,9 +1731,7 @@ def token_face(v):
 def build_decal(data, parent):
     ref = new_ref()
     tex = str(data.get("Texture","")).strip()
-    if not tex:
-        return ""
-
+    if not tex: return ""
     thumbnail_tex = convert_to_thumbnail(tex)
 
     return f"""
@@ -1755,16 +1747,18 @@ def build_decal(data, parent):
 </Item>
 """
 
-def build_sound(data, parent):  # ← NEW
+def build_sound(data, parent):   # ← FIXED: Now properly includes Playing property
     ref = new_ref()
     return f"""
 <Item class="Sound" referent="{ref}">
 <Properties>
 <string name="Name">{esc(data.get("Name","Sound"))}</string>
 <Content name="SoundId"><url>{esc(data.get("SoundId",""))}</url></Content>
-<float name="Volume">{data.get("Volume",1.0)}</float>
-<float name="PlaybackSpeed">{data.get("PlaybackSpeed",1.0)}</float>
-<bool name="Looped">{str(data.get("Looped",False)).lower()}</bool>
+<float name="Volume">{data.get("Volume", 1.0)}</float>
+<float name="PlaybackSpeed">{data.get("PlaybackSpeed", 1.0)}</float>
+<bool name="Looped">{str(data.get("Looped", False)).lower()}</bool>
+<bool name="Playing">{str(data.get("Playing", False)).lower()}</bool>
+<float name="TimePosition">{data.get("TimePosition", 0.0)}</float>
 <bool name="Archivable">true</bool>
 <Ref name="Parent">{parent}</Ref>
 </Properties>
@@ -1779,11 +1773,8 @@ def build_instance(data, parent):
     color = num_list(data.get("Color",[163,162,165]),3,[163,162,165])
     cf = num_list(data.get("CFrame",[0,0,0,1,0,0,0,1,0,0,0,1]),12,[0]*12)
 
-    xml = []
-    xml.append(f'<Item class="{cls}" referent="{ref}">')
-    xml.append("<Properties>")
+    xml = [f'<Item class="{cls}" referent="{ref}">', "<Properties>"]
     xml.append(f"<string name=\"Name\">{esc(data.get('Name','Part'))}</string>")
-
     xml.append(f"<Vector3 name=\"Size\"><X>{size[0]}</X><Y>{size[1]}</Y><Z>{size[2]}</Z></Vector3>")
 
     xml.append("<CoordinateFrame name=\"CFrame\">")
@@ -1794,7 +1785,6 @@ def build_instance(data, parent):
     xml.append("</CoordinateFrame>")
 
     xml.append(f'<Color3 name="Color"><R>{color[0]/255}</R><G>{color[1]/255}</G><B>{color[2]/255}</B></Color3>')
-
     xml.append(f'<bool name="Anchored">{str(data.get("Anchored",True)).lower()}</bool>')
     xml.append(f'<bool name="CanCollide">{str(data.get("CanCollide",True)).lower()}</bool>')
     xml.append(f'<float name="Transparency">{data.get("Transparency",0)}</float>')
@@ -1817,7 +1807,7 @@ def build_instance(data, parent):
     return "\n".join(xml)
 
 # =========================================================
-# BUILD RBXLX (now supports Sounds)
+# BUILD RBXLX
 # =========================================================
 def build_rbxlx(instances):
     ws_ref = get_workspace_referent(TEMPLATE)
@@ -1827,17 +1817,17 @@ def build_rbxlx(instances):
     inner = TEMPLATE[props_end+13:ws_close]
     cleaned = strip_workspace_items(inner)
 
-    def build_item(data, parent):
-        if data.get("ClassName") == "Sound":
-            return build_sound(data, parent)
-        return build_instance(data, parent)
+    generated = []
+    for item in instances:
+        if item.get("ClassName") == "Sound":
+            generated.append(build_sound(item, ws_ref))
+        else:
+            generated.append(build_instance(item, ws_ref))
 
-    generated = "\n".join(build_item(i, ws_ref) for i in instances)
-
-    return TEMPLATE[:props_end+13] + cleaned + generated + TEMPLATE[ws_close:]
+    return TEMPLATE[:props_end+13] + cleaned + "\n".join(generated) + TEMPLATE[ws_close:]
 
 # =========================================================
-# ROUTE (unchanged)
+# ROUTE
 # =========================================================
 @app.route("/publish", methods=["POST"])
 def publish():
@@ -1862,8 +1852,5 @@ def publish():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# =========================================================
-# RUN
-# =========================================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
